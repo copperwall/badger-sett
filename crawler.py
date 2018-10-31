@@ -43,8 +43,6 @@ WEEK_IN_SECONDS = 604800
 RESTART_RETRIES = 5
 
 ap = argparse.ArgumentParser()
-ap.add_argument('--browser', choices=[FIREFOX, CHROME], default=FIREFOX,
-                help='Browser to use for the scan')
 ap.add_argument('--n-sites', type=int, default=2000,
                 help='Number of websites to visit on the crawl')
 ap.add_argument('--timeout', type=float, default=30,
@@ -58,10 +56,12 @@ ap.add_argument('--survey', action='store_true', default=False,
 ap.add_argument('--domain-list', default=None,
                 help="If set, load domains from this file instead of the "
                 "majestic million (survey mode only)")
-ap.add_argument('--max-data-size', type=int, default=2e6,
+ap.add_argument('--max-data-size', type=int, default=5e5,
                 help='Maximum size of serialized localstorage data')
 
 # Arguments below here should never have to be used within the docker container.
+ap.add_argument('--browser', choices=[FIREFOX, CHROME], default=FIREFOX,
+                help='Browser to use for the scan')
 ap.add_argument('--out-path', default='./',
                 help='Path at which to save output')
 ap.add_argument('--pb-path', default='./privacybadger/src',
@@ -172,6 +172,7 @@ class Crawler(object):
         self.out_path = out_path
         self.pb_path = pb_path
         self.chromedriver_path = chromedriver_path
+        self.crx_path = None
         self.firefox_path = firefox_path
 
         # version is based on when the crawl started
@@ -200,9 +201,10 @@ class Crawler(object):
         if self.browser == CHROME:
             # in Chrome, we need to install the extension as a .crx file, which
             # means building it first
-            cmd = ['make', '-sC', self.pb_path, 'travisbuild']
-            build = subprocess.check_output(cmd).strip().decode('utf8').split()[-1]
-            self.crx_path = os.path.join(self.pb_path, build)
+            if not self.crx_path:
+                cmd = ['make', '-sC', self.pb_path, 'travisbuild']
+                build = subprocess.check_output(cmd).strip().decode('utf8').split()[-1]
+                self.crx_path = os.path.join(self.pb_path, build)
 
             opts = Options()
             opts.add_argument('--no-sandbox')
@@ -349,7 +351,7 @@ bkgr.badger.storage.%s.merge(data.%s);''' % (obj, obj)
         else:
             # If we couldn't restart the browser after all that, just quit.
             self.logger.error('Could not restart browser.')
-            sys.exit(1)
+            self.save(data, name='results-incomplete.json')
 
     # determine whether we need to restart the webdriver after an error
     def should_restart(self, e):
