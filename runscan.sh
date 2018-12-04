@@ -83,12 +83,16 @@ if ! docker run $FLAGS \
 fi
 
 # Run in Chrome (seccomp doesn't work in jessie):
-#docker run -t -i \
-  #-v $DOCKER_OUT:/home/$USER/out:z \
-  #-v /dev/shm:/dev/shm \
-  #--device /dev/dri \
-  #--security-opt seccomp=./chrome-seccomp.json \
-  #badger-sett "$@"
+if ! docker run $FLAGS \
+    -v $DOCKER_OUT:/home/$USER/out:z \
+    -v /dev/shm:/dev/shm \
+    --device /dev/dri \
+    badger-sett "$@"
+    #--security-opt seccomp=./chrome-seccomp.json \
+  mv "$DOCKER_OUT"/log.txt ./
+  echo "Scan failed. See log.txt for details."
+  exit 1;
+fi
 
 # back up old results
 cp results.json results-prev.json

@@ -12,7 +12,9 @@ import struct
 import string
 import subprocess
 import sys
+import tempfile
 import time
+from shutil import copytree
 from urllib.request import urlopen
 
 from PyFunceble import test as PyFunceble
@@ -67,7 +69,7 @@ ap.add_argument('--browser', choices=[FIREFOX, CHROME], default=FIREFOX,
                 help='Browser to use for the scan')
 ap.add_argument('--out-path', default='./',
                 help='Path at which to save output')
-ap.add_argument('--pb-path', default='./privacybadger/src',
+ap.add_argument('--pb-path', default='./privacybadger',
                 help='Path to the Privacy Badger binary or source directory')
 ap.add_argument('--chromedriver-path', default=CHROMEDRIVER_PATH,
                 help='Path to the chromedriver binary')
@@ -185,13 +187,14 @@ class Crawler(object):
     def create_extension_copy(self):
         # create temp directory
         tmp_dir = tempfile.TemporaryDirectory()
-        new_extension_path = os.path.join(tmp_dir.name, "src")
+        old_ext_path = os.path.join(self.pb_path, 'src')
+        new_ext_path = os.path.join(tmp_dir.name, 'src')
 
         # copy extension sources there
-        copytree(self.pb_path, new_extension_path)
+        copytree(old_ext_path, new_ext_path)
 
         # update manifest.json
-        manifest_path = os.path.join(new_extension_path, "manifest.json")
+        manifest_path = os.path.join(new_ext_path, "manifest.json")
         with open(manifest_path, "r") as f:
             manifest = json.load(f)
 
@@ -200,7 +203,7 @@ class Crawler(object):
         with open(manifest_path, "w") as f:
             json.dump(manifest, f)
 
-        return new_extension_path
+        return new_ext_path
 
     def start_driver(self):
         """Start a new Selenium web driver and install the bundled extension."""
@@ -208,22 +211,23 @@ class Crawler(object):
             # in Chrome, we need to install the extension from source, but
             # we have to copy the source folder to a temporary file first so we
             # can modify the manifest.
-	    ext_path = self.create_extension_copy()
+            ext_path = self.create_extension_copy()
 
             opts = ChromeOptions()
+            #opts.add_argument('--headless')
             opts.add_argument('--no-sandbox')
-            opts.add_argument('--load-extension=', ext_path)
+            opts.add_argument('--load-extension=' + ext_path)
 
             prefs = {"profile.block_third_party_cookies": False}
             opts.add_experimental_option("prefs", prefs)
             opts.add_argument('--dns-prefetch-disable')
 
-            caps = DesiredCapabilities.CHROME.copy()
-            caps['loggingPrefs'] = {'browser': 'ALL'}
+            #caps = DesiredCapabilities.CHROME.copy()
+            #caps['loggingPrefs'] = {'browser': 'ALL'}
 
             self.driver = webdriver.Chrome(self.chromedriver_path,
-                                           chrome_options=opts,
-                                           desired_capabilities=caps)
+                                           chrome_options=opts)
+                                           #desired_capabilities=caps)
 
         elif self.browser == FIREFOX:
             profile = webdriver.FirefoxProfile()
